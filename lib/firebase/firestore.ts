@@ -122,22 +122,21 @@ export async function fetchBackupData(): Promise<MailDocument[]> {
             if (rawDate) {
                 const d = new Date(rawDate);
                 if (!isNaN(d.getTime())) {
-                    // Create a mock Timestamp object compatible with UI code
                     dateVal = { seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0 };
                 }
             }
 
-            // Parse ID
+            // Parse ID — support both formats: "2025_10" (new) and "10-2025" (legacy)
             const noUrut = row['NO URUT'];
-            const year = 2025; // Default/Assumption as per bridge logic
+            const year = parseInt(String(row.year || row.id?.split('_')[0] || '2025'));
+            const canonicalId = row.id || `${year}_${noUrut}`;
 
             return {
                 ...row,
-                id: row.id || `${noUrut}-2025`,
+                id: canonicalId,
                 year: year,
                 accessId: parseInt(String(noUrut).replace(/\D/g, '')) || 0,
                 date: dateVal,
-                // Ensure common fields exist
                 subject: row['PERIHAL'] || row.subject || '',
                 sender: row['PENGIRIM'] || row.sender || '',
                 recipient: row['PENERIMA'] || row.recipient || ''
@@ -186,32 +185,31 @@ export const getMailsByYear = async (year: number): Promise<MailDocument[]> => {
 
         // 2. If Online, Fetch Data Efficiently (Cache Allowed)
         const mailsRef = collection(db, 'surat_masuk');
-        const q = query(mailsRef);
+        // Filter by year field (stored as number by the bridge)
+        const q = query(mailsRef, where('year', '==', year));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            console.warn("Firestore returned empty. possibly empty or sync issues.");
-            // Optional: Double check backup if truly empty?
+            console.warn(`Firestore returned empty for year ${year}. Possibly sync issues.`);
         }
 
         const mails: MailDocument[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            let dateVal = data['TANGGAL SURAT DITERIMA'];
-            let accessId = parseInt(String(data['NO URUT']).replace(/\D/g, '')) || 0;
+            const accessId = parseInt(String(data['NO URUT']).replace(/\D/g, '')) || 0;
 
             mails.push({
                 ...data,
                 id: doc.id,
-                year: 2025,
+                year: year,
                 accessId: accessId,
-                date: dateVal,
+                date: data['TANGGAL SURAT DITERIMA'],
                 subject: data['PERIHAL'],
                 sender: data['PENGIRIM'],
             } as MailDocument);
         });
 
-        setBackupModeActive(false); // Signal Normal Mode
+        setBackupModeActive(false);
         return mails.sort((a, b) => b.accessId - a.accessId);
 
     } catch (error: any) {
@@ -349,9 +347,28 @@ export const onConfigChange = (callback: (config: SystemConfig) => void, onError
 /**
  * Get all available years from mails
  */
+/**
+ * Get all available years from mails in Firestore.
+ * Reads the distinct `year` values from documents in surat_masuk.
+ */
 export const getAvailableYears = async (): Promise<number[]> => {
-    // For now, hardcode or fetch sample. Since bridge only does 2025:
-    return [2025];
+    try {
+        const isOnline = await checkOnlineStatus(3000);
+        if (!isOnline) return [new Date().getFullYear()];
+
+        const mailsRef = collection(db, 'surat_masuk');
+        // Fetch a sample of docs to extract distinct years
+        const snapshot = await getDocs(query(mailsRef, orderBy('year', 'desc')));
+        const yearsSet = new Set<number>();
+        snapshot.forEach(doc => {
+            const y = doc.data().year;
+            if (y && typeof y === 'number') yearsSet.add(y);
+        });
+        const years = Array.from(yearsSet).sort((a, b) => b - a);
+        return years.length > 0 ? years : [new Date().getFullYear()];
+    } catch {
+        return [new Date().getFullYear()];
+    }
 };
 
 /**

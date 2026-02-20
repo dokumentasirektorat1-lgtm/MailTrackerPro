@@ -6,88 +6,97 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        // ── LOCAL STRATEGY ──────────────────────────────────────────────────
-        // When running locally (dev or a Windows server), try to read the log
-        // file that the Python bridge writes directly to disk.
+        // ── LOCAL STRATEGY ────────────────────────────────────────────────────
+        // When running locally (dev server or Windows deployment), read the
+        // Python bridge log file directly from disk.
         const logPath = path.join(process.cwd(), 'bridge', 'bridge.log');
 
         if (fs.existsSync(logPath)) {
             const content = fs.readFileSync(logPath, 'utf8');
             const lines = content.split('\n').filter(l => l.trim() !== '');
-
-            // Return last 300 lines
-            const recentLogs = lines.slice(-300);
-            return NextResponse.json({ logs: recentLogs, source: 'local' });
+            return NextResponse.json({ logs: lines.slice(-300), source: 'local' });
         }
 
-        // ── FIRESTORE FALLBACK ───────────────────────────────────────────────
-        // On Vercel (or any environment without local file access), fall back
-        // to reading recent audit_logs from Firestore via the Admin SDK.
-        try {
-            const admin = await import('firebase-admin');
-            const { getFirestore } = await import('firebase-admin/firestore');
+        // ── FIRESTORE REST FALLBACK ───────────────────────────────────────────
+        // On Vercel (no local file), use the Firebase REST API with the
+        // client-side API key to read audit_logs from Firestore.
+        // This does NOT require any server-side admin credentials.
+        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
-            if (!admin.default.apps.length) {
-                const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-                if (!serviceAccountJson) {
-                    return NextResponse.json({
-                        logs: [
-                            '⚠ Bridge log file not found on this server.',
-                            '⚠ FIREBASE_SERVICE_ACCOUNT_JSON env var is also not set.',
-                            '',
-                            'ℹ The bridge only runs on the local Windows PC.',
-                            'ℹ To see logs here, the bridge must be running locally',
-                            '  and you must access the app via local dev server (npm run dev).',
-                            '',
-                            'ℹ For Vercel deployments, set FIREBASE_SERVICE_ACCOUNT_JSON',
-                            '  in your Vercel environment variables to read logs from Firestore.',
-                        ],
-                        source: 'static',
-                    });
-                }
-
-                const serviceAccount = JSON.parse(serviceAccountJson);
-                admin.default.initializeApp({
-                    credential: admin.default.credential.cert(serviceAccount),
-                });
-            }
-
-            const db = getFirestore();
-            const snapshot = await db
-                .collection('audit_logs')
-                .orderBy('timestamp', 'desc')
-                .limit(200)
-                .get();
-
-            const logs = snapshot.docs
-                .reverse()
-                .map(doc => {
-                    const d = doc.data();
-                    const ts = d.timestamp?.toDate
-                        ? d.timestamp.toDate().toLocaleString('id-ID')
-                        : '?';
-                    return `${ts} [${(d.level || 'info').toUpperCase()}] ${d.message}`;
-                });
-
-            return NextResponse.json({ logs, source: 'firestore' });
-
-        } catch (fsErr) {
+        if (!projectId || !apiKey) {
             return NextResponse.json({
                 logs: [
-                    '⚠ Bridge log file not found. The bridge is not running on this server.',
+                    '⚠ Bridge log file not found on this server (Vercel has no local disk access).',
                     '',
-                    'ℹ The Python bridge must run on the local Windows PC.',
-                    'ℹ Start it with: start_bridge.bat',
-                    '',
-                    `ℹ Firestore fallback also failed: ${String(fsErr)}`,
+                    'ℹ The bridge runs on your local Windows PC.',
+                    'ℹ Bridge audit events are still visible in the Event History table below.',
+                    'ℹ To see this log panel: access the app via  npm run dev  on your local PC.',
                 ],
-                source: 'error',
+                source: 'static',
             });
         }
 
+        // Firestore REST: fetch last 200 audit_log documents ordered by timestamp desc
+        const url =
+            `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+
+        const body = {
+            structuredQuery: {
+                from: [{ collectionId: 'audit_logs' }],
+                orderBy: [{ field: { fieldPath: 'timestamp' }, direction: 'DESCENDING' }],
+                limit: 200,
+            },
+        };
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            next: { revalidate: 0 },
+        });
+
+        if (!res.ok) {
+            throw new Error(`Firestore REST error: ${res.status} ${res.statusText}`);
+        }
+
+        const results: any[] = await res.json();
+
+        const logs: string[] = results
+            .filter((r: any) => r.document)
+            .reverse() // oldest first
+            .map((r: any) => {
+                const fields = r.document.fields || {};
+                const msg = fields.message?.stringValue || '';
+                const level = (fields.level?.stringValue || 'info').toUpperCase();
+                const ts = fields.timestamp?.timestampValue
+                    ? new Date(fields.timestamp.timestampValue).toLocaleString('id-ID')
+                    : '?';
+                return `${ts} [${level}] ${msg}`;
+            });
+
+        if (logs.length === 0) {
+            return NextResponse.json({
+                logs: [
+                    'ℹ No bridge audit events found in Firestore yet.',
+                    'ℹ Start the bridge on your local PC to begin generating events.',
+                ],
+                source: 'firestore',
+            });
+        }
+
+        return NextResponse.json({ logs, source: 'firestore' });
+
     } catch (error) {
         return NextResponse.json(
-            { logs: ['Error reading bridge logs.', String(error)], source: 'error' },
+            {
+                logs: [
+                    `⚠ Error reading bridge logs: ${String(error)}`,
+                    '',
+                    'ℹ Start the bridge locally and access via  npm run dev  to see real-time logs.',
+                ],
+                source: 'error',
+            },
             { status: 500 }
         );
     }

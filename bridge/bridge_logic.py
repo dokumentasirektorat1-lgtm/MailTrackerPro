@@ -61,9 +61,13 @@ class BridgeLogic:
         logging.info("Initializing Bridge Logic...")
         self.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
-        # Load Env
-        env_path = os.path.join(self.project_root, '.env')
-        load_dotenv(env_path if os.path.exists(env_path) else None)
+        # Load Env — try .env.local first (Next.js convention), then .env
+        env_local = os.path.join(self.project_root, '.env.local')
+        env_plain = os.path.join(self.project_root, '.env')
+        if os.path.exists(env_local):
+            load_dotenv(env_local)
+        elif os.path.exists(env_plain):
+            load_dotenv(env_plain)
         
         # Paths
         self.db_path = os.getenv('ACCESS_DB_PATH')
@@ -301,10 +305,12 @@ class BridgeLogic:
             
             no_urut = data.get('NO URUT')
             if no_urut is None: continue
-            
-            doc_id = f"{no_urut}-{self.target_year}"
+
+            # ID format: "{year}_{no_urut}" — matches the original Node.js bridge
+            # format so existing Firestore documents are updated (not duplicated).
+            doc_id = f"{self.target_year}_{no_urut}"
             data['id'] = doc_id
-            data['year'] = self.target_year
+            data['year'] = int(self.target_year)  # Store as number for Firestore queries
             
             # 1. Check existing state for hashing
             cached = self.processed_state.get(doc_id, {})
