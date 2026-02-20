@@ -1,0 +1,17 @@
+{
+    "install": "npm install",
+    "buildCommand": "next build",
+    "devCommand": "next dev",
+    "framework": "nextjs",
+    "ignoreCommand": "git diff HEAD^ HEAD --quiet . || true",
+    "outputDirectory": ".next",
+    "functions": {
+        "app/api/**/*": {
+            "maxDuration": 15
+        }
+    },
+    "env": {
+        "POSTGRES_PRISMA_URL": "",
+        "POSTGRES_URL_NON_POOLING": ""
+    }
+}
