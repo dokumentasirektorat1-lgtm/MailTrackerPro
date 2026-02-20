@@ -30,6 +30,9 @@ const nextConfig = {
         }
         return config;
     },
+
+    // 5. Silence Turbopack warning
+    turbopack: {},
 };
 
 module.exports = nextConfig;

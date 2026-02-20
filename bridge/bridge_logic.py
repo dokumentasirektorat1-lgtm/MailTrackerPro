@@ -199,8 +199,7 @@ class BridgeLogic:
                 self.db_path = data.get('accessDbPath', self.db_path)
                 self.drive_folder_id = data.get('driveFolderId', self.drive_folder_id)
                 self.target_year = int(data.get('targetYear', self.target_year))
-                self.target_table = f"DATA AGENDA SURAT MASUK {self.target_year}"
-                logging.info(f"  [FS] Config sync: OK. DB: {self.db_path} | Table: {self.target_table}")
+                logging.info(f"  [FS] Config sync: OK. DB: {self.db_path} | Target Year: {self.target_year}")
             else:
                 logging.warning("  [FS] Config document not found.")
         except Exception as e:
@@ -284,14 +283,27 @@ class BridgeLogic:
             logging.error(f"ODBC Connect Failed: {e}")
             raise
 
-        # Fetch Table
+        # Auto-Detect Table Name
         try:
+            available_tables = [table.table_name for table in cursor.tables(tableType='TABLE')]
+            valid_tables = [t for t in available_tables if t.startswith("DATA AGENDA SURAT MASUK")]
+            
+            if not valid_tables:
+                raise Exception("No 'DATA AGENDA SURAT MASUK' table found in database.")
+                
+            desired_table = f"DATA AGENDA SURAT MASUK {self.target_year}"
+            if desired_table in valid_tables:
+                self.target_table = desired_table
+            else:
+                self.target_table = valid_tables[0] # Fallback to first available
+                logging.warning(f"Desired table [{desired_table}] not found. Falling back to [{self.target_table}].")
+                
             self.log_event(f"Scanning table: [{self.target_table}]", "info")
             cursor.execute(f"SELECT * FROM [{self.target_table}]")
             columns = [col[0] for col in cursor.description]
             rows = cursor.fetchall()
         except Exception as e:
-            logging.error(f"Table Read Failed: {self.target_table}")
+            logging.error(f"Table Read Failed: {e}")
             raise
 
         stats = {"added": 0, "updated": 0, "skipped": 0}
