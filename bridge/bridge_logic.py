@@ -409,7 +409,12 @@ class BridgeLogic:
     def _extract_attachments(self, dao_db, no_urut):
         results = []
         try:
-            query = f"SELECT [LAMPIRAN SURAT] FROM [{self.target_table}] WHERE [NO URUT] = '{no_urut}'"
+            # Handle numeric IDs appropriately to avoid Data type mismatch in Access
+            if isinstance(no_urut, (int, float)) or (isinstance(no_urut, str) and no_urut.isnumeric()):
+                query = f"SELECT [LAMPIRAN SURAT] FROM [{self.target_table}] WHERE [NO URUT] = {no_urut}"
+            else:
+                query = f"SELECT [LAMPIRAN SURAT] FROM [{self.target_table}] WHERE [NO URUT] = '{no_urut}'"
+                
             rs = dao_db.OpenRecordset(query)
             if not rs.EOF:
                 child_rs = rs.Fields("LAMPIRAN SURAT").Value
