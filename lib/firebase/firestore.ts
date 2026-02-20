@@ -67,6 +67,7 @@ export interface SystemConfig {
     backup_json_url?: string; // URL to latest_data.json on Drive
     backup_json_id?: string;
     maintenanceMode?: boolean; // Added maintenanceMode
+    targetYear?: number;
 }
 
 // HARDCODED FALLBACK (To be filled by user in Vercel ENV)

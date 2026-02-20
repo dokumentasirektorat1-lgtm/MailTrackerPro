@@ -13,6 +13,7 @@ export default function SettingsPage() {
         driveFolderId: '',
         driveApiKey: '',
         backup_json_url: '',
+        targetYear: new Date().getFullYear().toString(),
     });
     const [saving, setSaving] = useState(false);
 
@@ -23,6 +24,7 @@ export default function SettingsPage() {
                 driveFolderId: config.driveFolderId || '',
                 driveApiKey: config.driveApiKey || '',
                 backup_json_url: config.backup_json_url || '',
+                targetYear: config.targetYear?.toString() || new Date().getFullYear().toString(),
             });
         }
     }, [config]);
@@ -41,6 +43,7 @@ export default function SettingsPage() {
                 driveFolderId: formData.driveFolderId.trim(),
                 driveApiKey: formData.driveApiKey.trim(),
                 backup_json_url: formData.backup_json_url.trim(),
+                targetYear: parseInt(formData.targetYear) || new Date().getFullYear(),
             };
 
             console.log('Saving config:', dataToSave);
@@ -138,6 +141,26 @@ export default function SettingsPage() {
                                 value={formData.accessDbPath}
                                 onChange={handleChange}
                                 placeholder="F:\Folder\Database.accdb"
+                                className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
+                                required
+                            />
+                        </div>
+
+                        {/* Target Year */}
+                        <div>
+                            <label htmlFor="targetYear" className="block text-sm font-medium text-slate-900 dark:text-white mb-2">
+                                Active Sync Year
+                            </label>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                The specific year to sync from the MS Access Database. This tells the bridge which table to scan (e.g., 2026).
+                            </p>
+                            <input
+                                type="number"
+                                id="targetYear"
+                                name="targetYear"
+                                value={formData.targetYear}
+                                onChange={handleChange}
+                                placeholder="2026"
                                 className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
                                 required
                             />

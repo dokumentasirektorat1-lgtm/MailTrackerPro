@@ -199,7 +199,8 @@ class BridgeLogic:
                 self.db_path = data.get('accessDbPath', self.db_path)
                 self.drive_folder_id = data.get('driveFolderId', self.drive_folder_id)
                 self.target_year = int(data.get('targetYear', self.target_year))
-                logging.info(f"  [FS] Config sync: OK. DB Path: {self.db_path}")
+                self.target_table = f"DATA AGENDA SURAT MASUK {self.target_year}"
+                logging.info(f"  [FS] Config sync: OK. DB: {self.db_path} | Table: {self.target_table}")
             else:
                 logging.warning("  [FS] Config document not found.")
         except Exception as e:
