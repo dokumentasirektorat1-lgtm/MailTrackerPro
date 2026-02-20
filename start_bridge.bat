@@ -2,27 +2,17 @@
 cd /d "%~dp0"
 
 :: -------------------------------------------------------------
-::  MAILTRACKER PRO BRIDGE RUNNER (LOCAL ONLY)
+::  MAILTRACKER PRO BRIDGE LAUNCHER
 :: -------------------------------------------------------------
-::  NOTE FOR DEPLOYMENT (VERCEL/NETLIFY):
-::  This file and the entire 'bridge' folder are ignored on Vercel.
-::  The Python Bridge runs ONLY on the local Windows PC where the 
-::  MS Access database resides. It acts as a background agent pushing
-::  data to Firebase/Google Drive.
+::  Script ini akan menjalankan 'run_bridge_tray.ps1' secara hidden.
+::  PS1 tersebut bertindak sebagai Watchdog (Auto-Resart jika crash).
+::  Logika utama bridge ada di 'bridge/bridge_tray.py'.
 :: -------------------------------------------------------------
 
-echo Starting MailTrackerPro Bridge...
+echo Starting MailTrackerPro Watchdog & Bridge...
 
-:: Check if .venv exists
-if exist ".venv\Scripts\activate.bat" (
-    call .venv\Scripts\activate.bat
-) else (
-    echo Python environment not found. Please setup .venv first.
-    pause
-    exit
-)
-
-:: Run the tray application (invisible window)
-start /min "" pythonw bridge/bridge_tray.py
+:: Jalankan PowerShell script dalam mode Hidden (WindowStyle Hidden)
+:: Ini memastikan aplikasi berjalan di background/tray.
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "run_bridge_tray.ps1"
 
 exit

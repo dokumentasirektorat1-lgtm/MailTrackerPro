@@ -64,7 +64,8 @@ export default function DirectoryPage() {
 
             // 1. Filter out raw disposisi cols only (Event cols remain separate)
             const ignored = [
-                'PENANGGUNG JAWAB PENERIMA DISPOSISI', 'ISI DISPOSISI'
+                'PENANGGUNG JAWAB PENERIMA DISPOSISI', 'ISI DISPOSISI',
+                'date', 'subject', 'sender', 'year', 'accessId', 'id', 'attachment_link', 'search_keywords', 'target_year_config'
             ];
             const filtered = rawColumns.filter(c => !ignored.includes(c));
 
@@ -92,10 +93,20 @@ export default function DirectoryPage() {
 
     // 1. Filter
     const filteredMails = useMemo(() => {
-        if (!debouncedSearch) return mails;
+        // 1. Deduplicate by specific ID (safety net)
+        const uniqueMap = new Map();
+        mails.forEach(m => {
+            // Only process if year matches (or is missing)
+            if (!m.year || m.year === selectedYear) {
+                uniqueMap.set(m.id, m);
+            }
+        });
+        const uniqueMails = Array.from(uniqueMap.values());
+
+        if (!debouncedSearch) return uniqueMails;
         const term = debouncedSearch.toLowerCase();
 
-        return mails.filter(mail => {
+        return uniqueMails.filter(mail => {
             if (searchColumn === 'all') {
                 return Object.values(mail).some(val =>
                     String(val).toLowerCase().includes(term)
@@ -104,7 +115,7 @@ export default function DirectoryPage() {
             const val = mail[searchColumn];
             return String(val || '').toLowerCase().includes(term);
         });
-    }, [mails, debouncedSearch, searchColumn]);
+    }, [mails, debouncedSearch, searchColumn, selectedYear]);
 
     // 2. Sort
     const sortedMails = useMemo(() => {
@@ -181,7 +192,18 @@ export default function DirectoryPage() {
         if (value === null || value === undefined) return '-';
         if (typeof value === 'object' && value.seconds) {
             // Firestore Timestamp
-            return new Date(value.seconds * 1000).toLocaleDateString('id-ID');
+            return new Date(value.seconds * 1000).toLocaleDateString('id-ID', {
+                day: '2-digit', month: 'long', year: 'numeric'
+            });
+        }
+        // Handle ISO Date Strings (2026-02-20T00:00:00)
+        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleDateString('id-ID', {
+                    day: '2-digit', month: 'long', year: 'numeric'
+                });
+            }
         }
         if (typeof value === 'object') {
             return JSON.stringify(value);
@@ -507,6 +529,34 @@ export default function DirectoryPage() {
                                                 </span>
                                             </td>
                                             {dynamicColumns.map((column) => {
+                                                // Handle Attachments Column
+                                                if (column.match(/LAMPIRAN|ATTACHMENT|FILE/i)) {
+                                                    const hasAtt = mail.attachments && mail.attachments.length > 0;
+                                                    // Priority: attachment_link field -> or first item in attachments array
+                                                    const attLink = mail.attachment_link || (hasAtt ? mail.attachments?.[0]?.driveViewLink : null);
+
+                                                    return (
+                                                        <td key={column} className={`px-6 py-4 text-center ${getColumnClass(column)}`}>
+                                                            {attLink ? (
+                                                                <a
+                                                                    href={attLink}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="inline-flex items-center justify-center p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 transition-colors group/icon"
+                                                                    title="View Attachment"
+                                                                >
+                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                                                    </svg>
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-slate-300 dark:text-slate-600">-</span>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                }
+
                                                 // 2. DISPOSISI INFO
                                                 if (column === 'DISPOSISI_INFO') {
                                                     const pic = mail['PENANGGUNG JAWAB PENERIMA DISPOSISI'];

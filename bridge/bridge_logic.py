@@ -308,9 +308,20 @@ class BridgeLogic:
 
             # ID format: "{year}_{no_urut}" — matches the original Node.js bridge
             # format so existing Firestore documents are updated (not duplicated).
-            doc_id = f"{self.target_year}_{no_urut}"
+            # Determine Year from Date Field
+            # Default to target_year (2025) if missing, but try to parse real year
+            real_year = int(self.target_year)
+            date_val = data.get('TANGGAL SURAT DITERIMA')
+            if date_val and isinstance(date_val, str) and len(date_val) >= 4:
+                try:
+                    real_year = int(date_val[:4])
+                except: pass
+
+            # ID format: "{year}_{no_urut}"
+            doc_id = f"{real_year}_{no_urut}"
             data['id'] = doc_id
-            data['year'] = int(self.target_year)  # Store as number for Firestore queries
+            data['year'] = real_year
+            data['target_year_config'] = int(self.target_year) # Keep track of original scan scope
             
             # 1. Check existing state for hashing
             cached = self.processed_state.get(doc_id, {})
@@ -398,7 +409,7 @@ class BridgeLogic:
                     if existing:
                         results.append({
                             'fileName': fname,
-                            'driveViewLink': f"https://drive.google.com/uc?export=download&id={existing['id']}",
+                            'driveViewLink': f"https://drive.google.com/file/d/{existing['id']}/view?usp=sharing",
                             'driveFileId': existing['id']
                         })
                     else:
@@ -441,7 +452,7 @@ class BridgeLogic:
             f = self.drive_service.files().create(body=meta, media_body=media, fields='id').execute()
             fid = f.get('id')
             self.drive_service.permissions().create(fileId=fid, body={'type': 'anyone', 'role': 'reader'}).execute()
-            return {'id': fid, 'link': f"https://drive.google.com/uc?export=download&id={fid}"}
+            return {'id': fid, 'link': f"https://drive.google.com/file/d/{fid}/view?usp=sharing"}
         except: return None
 
     def _upload_simple_file(self, path, name):
