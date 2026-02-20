@@ -81,7 +81,8 @@ export default function DirectoryPage() {
 
             const finalCols = [
                 ...preferred.filter(c => filtered.includes(c) || c === 'DISPOSISI_INFO'),
-                ...filtered.filter(c => !preferred.includes(c))
+                ...filtered.filter(c => !preferred.includes(c)),
+                'LAMPIRAN'
             ];
 
             setDynamicColumns(finalCols);
@@ -240,6 +241,8 @@ export default function DirectoryPage() {
                         val = `${mail['PENANGGUNG JAWAB PENERIMA DISPOSISI'] || '-'} (${mail['ISI DISPOSISI'] || '-'})`;
                     } else if (header.match(/status/i)) {
                         val = getComputedStatus(mail);
+                    } else if (header.match(/LAMPIRAN/i)) {
+                        val = mail.attachment_link || '-';
                     } else {
                         val = mail[header];
                     }
