@@ -3,7 +3,6 @@
     "buildCommand": "next build",
     "devCommand": "next dev",
     "framework": "nextjs",
-    "ignoreCommand": "git diff HEAD^ HEAD --quiet . || true",
     "outputDirectory": ".next",
     "functions": {
         "app/api/**/*": {
