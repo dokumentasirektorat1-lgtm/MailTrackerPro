@@ -1,0 +1,19 @@
+{
+    "name": "mailtrack-bridge",
+    "version": "1.0.0",
+    "description": "Node.js Bridge for synchronizing MS Access database to Firebase",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.1",
+        "firebase-admin": "^12.0.0",
+        "googleapis": "^128.0.0",
+        "mdb-reader": "^1.1.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.3"
+    }
+}

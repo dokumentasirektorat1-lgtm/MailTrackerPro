@@ -1,0 +1,67 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+.venv_old_*/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*
+!.env.example
+!.env.local.example
+token.json
+credentials.json
+serviceAccountKey.json
+.env.secrets
+
+# Bridge Data & Logs
+bridge/sync_state.json
+bridge/sync_state.db
+bridge/latest_data.json
+bridge/config.json
+bridge/bridge.log
+bridge/bridge_debug.log
+bridge/temp_attachments/
+bridge/temp_att/
+bridge/__pycache__/
+bridge/node_modules/
+sync_signal.txt
+
+# Log & Output Files
+*.log
+*.sqlite
+output*.txt
+stderr.txt
+log.txt
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+.DS_Store
+*.pem
+*.tsbuildinfo
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Vercel
+.vercel
+
+# Design Tool Artifacts
+stitch/
+
+# MS Access
+*.accdb
+*.laccdb
+*.mdb
+*.ldb
