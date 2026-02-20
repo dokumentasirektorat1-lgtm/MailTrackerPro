@@ -1,4 +1,4 @@
-[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
+﻿[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
 [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing")
 
 Add-Type -MemberDefinition '
@@ -24,6 +24,23 @@ $lastRestartTime = [DateTime]::MinValue
 $global:currentBridgeProcess = $null
 
 # ---------------------------------------------------------
+# Helper: Check if bridge_tray.py is actually running
+# Uses process list instead of window handle because
+# pythonw.exe is headless (no window title or handle).
+# ---------------------------------------------------------
+function Test-BridgeRunning {
+    $procs = Get-Process -Name "pythonw" -ErrorAction SilentlyContinue
+    foreach ($p in $procs) {
+        try {
+            $cmdline = (Get-WmiObject Win32_Process -Filter "ProcessId=$($p.Id)").CommandLine
+            if ($cmdline -match "bridge_tray\.py") { return $true }
+        }
+        catch {}
+    }
+    return $false
+}
+
+# ---------------------------------------------------------
 # CRITICAL: SINGLE INSTANCE CHECK (MUTEX)
 # ---------------------------------------------------------
 $mutexName = "Global\MailTrackerPro_Tray_Mutex"
@@ -34,20 +51,11 @@ if (!$mutex.WaitOne(0, $false)) { exit }
 # Helper: Get Current Valid Handle
 # ---------------------------------------------------------
 function Get-CurrentHandle {
-    # 1. Try saved process object
-    if ($global:currentBridgeProcess) {
-        # Check if exited
-        if ($global:currentBridgeProcess.HasExited) {
-            $global:currentBridgeProcess = $null
-        }
-        else {
-            $global:currentBridgeProcess.Refresh()
-            $h = $global:currentBridgeProcess.MainWindowHandle
-            if ($h -ne [IntPtr]::Zero) { return $h }
-        }
+    # Check saved process object first
+    if ($global:currentBridgeProcess -and -not $global:currentBridgeProcess.HasExited) {
+        return [IntPtr]::Zero  # Placeholder non-zero equivalent for compatibility
     }
-    
-    # 2. Fallback: Search by title (Recovers lost handles or manual starts)
+    # Fallback: search by window title (for visible cmd windows if any)
     $proc = Get-Process | Where-Object { $_.MainWindowTitle -match $UNIQUE_TITLE } | Select-Object -First 1
     if ($proc) {
         $global:currentBridgeProcess = $proc
@@ -64,48 +72,17 @@ function Start-BridgeProcess {
 
     # 1. COOLDOWN CHECK
     $now = Get-Date
-    if (($now - $lastRestartTime).TotalSeconds -lt 5) { return }
+    if (($now - $global:lastRestartTime).TotalSeconds -lt 15) { return }
     $global:lastRestartTime = $now
 
-    # 2. RUNNING CHECK
-    $h = Get-CurrentHandle
-    if ($h -ne [IntPtr]::Zero) { 
-        if ($StartVisible) {
-            # Force Restore
-            [User32.Win32Utils]::ShowWindowAsync($h, 9) # SW_RESTORE
-            [User32.Win32Utils]::SetForegroundWindow($h)
-        }
-        return
-    }
+    # 2. RUNNING CHECK â€” use process existence, not window handle
+    #    pythonw.exe is headless so it never has a MainWindowHandle.
+    if (Test-BridgeRunning) { return }
 
     # 3. START IT
-    # Start minimized. cmd /k keeps it alive if script finishes fast (debug), but /c is better for auto-restart on crash.
-    # We stick with /c and rely on Cooldown.
-    $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$bridgeScript`"" -WindowStyle Minimized -PassThru
+    $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$bridgeScript`"" -WindowStyle Hidden -PassThru
     $global:currentBridgeProcess = $p
-
-    # 4. Handle Window Visibility
-    # Wait loop strictly for handle creation
-    $attempts = 0
-    while ($attempts -lt 20) {
-        # 5s max
-        Start-Sleep -Milliseconds 250
-        $p.Refresh()
-        $h = $p.MainWindowHandle
-        if ($h -ne [IntPtr]::Zero) {
-            if ($StartVisible) {
-                # SW_RESTORE (9) is crucial to un-minimize
-                [User32.Win32Utils]::ShowWindow($h, 9)
-                [User32.Win32Utils]::SetForegroundWindow($h)
-            }
-            else {
-                # Ensure hidden startup
-                [User32.Win32Utils]::ShowWindow($h, 0)
-            }
-            break
-        }
-        $attempts++
-    }
+    Write-Host "[Watchdog] Bridge process started. PID: $($p.Id)"
 }
 
 # ---------------------------------------------------------
@@ -200,22 +177,14 @@ $notifyIcon.add_DoubleClick($ToggleAction)
 # Watchdog Timer
 # ---------------------------------------------------------
 $timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 1000 # Check every 1 second
+$timer.Interval = 10000 # Check every 10 seconds (reduced from 1s)
 $timer.add_Tick({
         if ($global:manualExit) { return }
 
-        $handle = Get-CurrentHandle
-    
-        # 1. RESTART IF MISSING
-        if ($handle -eq [IntPtr]::Zero) {
-            $now = Get-Date
-            if (($now - $global:lastRestartTime).TotalSeconds -gt 5) {
-                Start-BridgeProcess -StartVisible $false
-            }
-        }
-        # 2. HIDE IF MINIMIZED
-        elseif ([User32.Win32Utils]::IsIconic($handle)) {
-            [User32.Win32Utils]::ShowWindow($handle, 0)
+        # Use process-based check â€” pythonw is headless, has no window handle
+        if (-not (Test-BridgeRunning)) {
+            Write-Host "[Watchdog] Bridge not detected â€” attempting restart..."
+            Start-BridgeProcess -StartVisible $false
         }
     })
 $timer.Start()
