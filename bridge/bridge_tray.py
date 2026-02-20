@@ -56,7 +56,18 @@ class BridgeTrayApp:
         """Heartbeat and Signal Listener Loop."""
         logging.info("Bridge loop thread started.")
         
-        # Immediate startup sync (background)
+        # 1. Immediate Config Sync (BLOCKING) - crucial to get DB path first
+        if self.bridge:
+            logging.info("Fetching initial configuration...")
+            self.bridge.sync_config()
+            
+            # Wait for DB check
+            if not self.bridge.db_path or not os.path.exists(self.bridge.db_path):
+                logging.warning(f"DB Path not found yet: {self.bridge.db_path}. Retrying config fetch...")
+                time.sleep(2)
+                self.bridge.sync_config()
+
+        # 2. Start Initial Sync (Background)
         threading.Thread(target=self.safe_sync, daemon=True).start()
 
         sync_counter = 0
@@ -72,7 +83,9 @@ class BridgeTrayApp:
                         continue
 
                 # 1. Sync Config from Firestore (Remote control)
-                self.bridge.sync_config()
+                # (Already done at startup, but keep doing it periodically or only if needed)
+                if sync_counter % 5 == 0: # Sync config every 5 loops (~5 mins) to save reads
+                    self.bridge.sync_config()
 
                 # 2. Heartbeat (Status report)
                 self.bridge.update_bridge_status("healthy")
