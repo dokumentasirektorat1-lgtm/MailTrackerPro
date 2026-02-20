@@ -27,6 +27,7 @@ interface MailDetail {
     category: string;
     processedBy?: string;
     notes?: string;
+    catatan_tambahan?: string;
     attachments: Attachment[];
     eventInfo?: EventInfo;
 }
@@ -448,10 +449,17 @@ export default function DocumentViewerModal({ isOpen, onClose, mail }: DocumentV
                                                     </div>
                                                 )}
 
-                                                {mail.notes && (
+                                                {mail.notes && mail.notes !== '-' && (
                                                     <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
                                                         <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Disposisi Notes</p>
                                                         <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-serif italic">{mail.notes}</p>
+                                                    </div>
+                                                )}
+
+                                                {mail.catatan_tambahan && mail.catatan_tambahan !== '-' && (
+                                                    <div className="bg-amber-50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-800/30">
+                                                        <p className="text-xs font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-wide mb-1">Catatan Tambahan</p>
+                                                        <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">{mail.catatan_tambahan}</p>
                                                     </div>
                                                 )}
                                             </div>

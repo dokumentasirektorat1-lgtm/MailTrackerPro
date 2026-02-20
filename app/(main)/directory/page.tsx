@@ -281,7 +281,8 @@ export default function DirectoryPage() {
             status: getComputedStatus(mail).toLowerCase(),
             category: mail.Category || mail.Kategori || 'General',
             processedBy: mail.ProcessedBy || mail['PENANGGUNG JAWAB PENERIMA DISPOSISI'],
-            notes: mail['ISI DISPOSISI'] || mail.Notes || mail.Catatan,
+            notes: mail['ISI DISPOSISI'] || mail.Notes || '-',
+            catatan_tambahan: mail['CATATAN'] || mail.Catatan || '-',
             attachments: (mail.attachments || mail.Attachments || []).map((att: any, idx: number) => ({
                 id: att.driveFileId || `att-${idx}`,
                 name: att.fileName || `Attachment ${idx + 1}`,
