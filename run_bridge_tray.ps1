@@ -17,7 +17,7 @@ Add-Type -MemberDefinition '
 ' -Name Win32Utils -Namespace User32
 
 $scriptPath = $PSScriptRoot
-$bridgeScript = Join-Path $scriptPath "start_bridge.bat"
+$bridgeScript = Join-Path $scriptPath "bridge_worker.bat"
 $UNIQUE_TITLE = "MailTrackerPro_Bridge_Process_V2"
 $global:manualExit = $false
 $lastRestartTime = [DateTime]::MinValue
@@ -29,9 +29,11 @@ $global:currentBridgeProcess = $null
 # pythonw.exe is headless (no window title or handle).
 # ---------------------------------------------------------
 function Test-BridgeRunning {
-    $procs = Get-Process -Name "pythonw" -ErrorAction SilentlyContinue
+    # Check for python OR pythonw running the tray script
+    $procs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue
     foreach ($p in $procs) {
         try {
+            # Get Command Line via WMI
             $cmdline = (Get-WmiObject Win32_Process -Filter "ProcessId=$($p.Id)").CommandLine
             if ($cmdline -match "bridge_tray\.py") { return $true }
         }
@@ -181,9 +183,9 @@ $timer.Interval = 10000 # Check every 10 seconds (reduced from 1s)
 $timer.add_Tick({
         if ($global:manualExit) { return }
 
-        # Use process-based check â€” pythonw is headless, has no window handle
+        # Use process-based check - pythonw is headless
         if (-not (Test-BridgeRunning)) {
-            Write-Host "[Watchdog] Bridge not detected â€” attempting restart..."
+            Write-Host "[Watchdog] Bridge not detected... attempting restart."
             Start-BridgeProcess -StartVisible $false
         }
     })

@@ -170,6 +170,37 @@ const checkOnlineStatus = async (timeoutMs: number = 3000): Promise<boolean> => 
 };
 
 /**
+ * Robust date parser that handles:
+ * 1. Firestore Timestamp objects { seconds, nanoseconds }
+ * 2. ISO Date Strings "2026-02-20T00:00:00"
+ * 3. JS Date Objects
+ * 4. Null/Undefined -> returns null
+ */
+const parseFirestoreDate = (val: any): { seconds: number, nanoseconds: number } | null => {
+    if (!val) return null;
+
+    // Is it already a Firestore Timestamp-like object?
+    if (typeof val.seconds === 'number') {
+        return { seconds: val.seconds, nanoseconds: val.nanoseconds || 0 };
+    }
+
+    // Is it a Date object?
+    if (val instanceof Date) {
+        return { seconds: Math.floor(val.getTime() / 1000), nanoseconds: 0 };
+    }
+
+    // Is it a string? Try to parse it.
+    if (typeof val === 'string') {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+            return { seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0 };
+        }
+    }
+
+    return null;
+};
+
+/**
  * Get all mails for a specific year
  */
 export const getMailsByYear = async (year: number): Promise<MailDocument[]> => {
@@ -203,7 +234,7 @@ export const getMailsByYear = async (year: number): Promise<MailDocument[]> => {
                 id: doc.id,
                 year: year,
                 accessId: accessId,
-                date: data['TANGGAL SURAT DITERIMA'],
+                date: parseFirestoreDate(data['TANGGAL SURAT DITERIMA']),
                 subject: data['PERIHAL'],
                 sender: data['PENGIRIM'],
             } as MailDocument);
@@ -238,6 +269,7 @@ export const getMailById = async (compositeId: string): Promise<MailDocument | n
             return {
                 ...data,
                 id: mailDoc.id,
+                date: parseFirestoreDate(data['TANGGAL SURAT DITERIMA']),
                 accessId: parseInt(String(data['NO URUT'] || '').replace(/\D/g, '')) || 0,
             } as MailDocument;
         }
