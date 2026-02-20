@@ -425,12 +425,16 @@ class BridgeLogic:
                     # Check Cache/Existing
                     existing = self._check_drive_file(smart_name)
                     if existing:
+                        logging.info(f"    [ATT] Found cached & existing drive file: {fname}")
                         results.append({
                             'fileName': fname,
                             'driveViewLink': f"https://drive.google.com/file/d/{existing['id']}/view?usp=sharing",
                             'driveFileId': existing['id']
                         })
                     else:
+                        logging.info(f"    [ATT] Extracting and Uploading: {fname}...")
+                        self.log_event(f"Uploading Attachment: {fname} for Doc#{no_urut}", "info")
+                        
                         temp_dir = os.path.join(os.path.dirname(__file__), 'temp_att')
                         if not os.path.exists(temp_dir): os.makedirs(temp_dir)
                         path = os.path.join(temp_dir, smart_name)
@@ -439,16 +443,24 @@ class BridgeLogic:
                         if os.path.exists(path):
                             res = self._upload_to_drive(path, smart_name)
                             if res:
+                                logging.info(f"    [ATT] Upload Success [{fname}] -> Drive ID: {res['id']}")
+                                self.log_event(f"Success: {fname} uploaded", "success")
                                 results.append({
                                     'fileName': fname,
                                     'driveViewLink': res['link'],
                                     'driveFileId': res['id']
                                 })
+                            else:
+                                logging.warning(f"    [ATT] Upload Failed for: {fname}")
+                                self.log_event(f"Failed to upload: {fname}", "error")
+                                
                             try: os.remove(path)
                             except: pass
                     child_rs.MoveNext()
             rs.Close()
-        except: pass
+        except Exception as e: 
+            logging.error(f"  [ATT ERROR - ExTrack] No Urut {no_urut}: {e}")
+            self.log_event(f"Attachment extraction failed for {no_urut}: {e}", "error")
         return results
 
     def _check_drive_file(self, name):
@@ -471,7 +483,9 @@ class BridgeLogic:
             fid = f.get('id')
             self.drive_service.permissions().create(fileId=fid, body={'type': 'anyone', 'role': 'reader'}).execute()
             return {'id': fid, 'link': f"https://drive.google.com/file/d/{fid}/view?usp=sharing"}
-        except: return None
+        except Exception as e: 
+            logging.error(f"    [DRIVE UPLOAD ERROR] {e}")
+            return None
 
     def _upload_simple_file(self, path, name):
         if not self.drive_service: return None, None
