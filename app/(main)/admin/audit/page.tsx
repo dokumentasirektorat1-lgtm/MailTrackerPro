@@ -21,27 +21,6 @@ function AdminAuditContent() {
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [bridgeLogs, setBridgeLogs] = useState<string[]>([]);
-
-    useEffect(() => {
-        const fetchBridgeLogs = async () => {
-            try {
-                const res = await fetch('/api/bridge-logs');
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data.logs) {
-                    // Filter empty lines
-                    setBridgeLogs(data.logs.filter((l: string) => l.trim() !== ''));
-                }
-            } catch (error) {
-                console.error("Failed to fetch bridge logs", error);
-            }
-        };
-
-        fetchBridgeLogs();
-        const interval = setInterval(fetchBridgeLogs, 3000);
-        return () => clearInterval(interval);
-    }, []);
 
     // Auto-scroll logic
     useEffect(() => {
@@ -49,7 +28,7 @@ function AdminAuditContent() {
         if (container) {
             container.scrollTop = container.scrollHeight;
         }
-    }, [bridgeLogs]);
+    }, [logs]);
 
     useEffect(() => {
         if (!user) return;
@@ -178,13 +157,17 @@ function AdminAuditContent() {
                         <span className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em]">Bridge Terminal Output</span>
                     </div>
                     <div id="bridge-terminal" className="flex-1 p-6 font-mono text-xs text-green-400/90 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
-                        {bridgeLogs.length === 0 ? (
+                        {loading ? (
                             <div className="h-full flex items-center justify-center text-slate-600 italic">Initializing stream...</div>
+                        ) : logs.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-slate-600 italic">No logs available in database.</div>
                         ) : (
-                            bridgeLogs.map((line, i) => (
-                                <div key={i} className="hover:bg-white/5 border-l-2 border-transparent hover:border-blue-500 pl-3 transition-colors">
+                            [...logs].reverse().map((log, i) => (
+                                <div key={log.id} className="hover:bg-white/5 border-l-2 border-transparent hover:border-blue-500 pl-3 transition-colors">
                                     <span className="text-slate-600 mr-4">{(i + 1).toString().padStart(3, '0')}</span>
-                                    {line}
+                                    <span className={log.level === 'error' ? 'text-red-400' : log.level === 'warning' ? 'text-amber-400' : 'text-green-400/90'}>
+                                        [{log.level ? log.level.toUpperCase() : 'INFO'}] {log.message}
+                                    </span>
                                 </div>
                             ))
                         )}
