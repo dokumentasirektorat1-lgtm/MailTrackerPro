@@ -195,7 +195,7 @@ export default function DirectoryPage() {
             // Firestore Timestamp
             return new Date(value.seconds * 1000).toLocaleDateString('id-ID', {
                 day: '2-digit', month: 'long', year: 'numeric'
-            }).replace(/ /g, '-');
+            });
         }
         // Handle ISO Date Strings (2026-02-20T00:00:00)
         if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
@@ -203,7 +203,7 @@ export default function DirectoryPage() {
             if (!isNaN(d.getTime())) {
                 return d.toLocaleDateString('id-ID', {
                     day: '2-digit', month: 'long', year: 'numeric'
-                }).replace(/ /g, '-');
+                });
             }
         }
         if (typeof value === 'object') {
@@ -267,7 +267,7 @@ export default function DirectoryPage() {
     const handleViewDetail = (mail: any) => {
         // Map Firestore data to Modal interface
         // Detect Event/Deadline Info
-        const eventDate = formatCellValue(mail['TANGGAL PELAKSANAAN']);
+        const eventDate = formatCellValue(mail['HARI,TANGGAL PELAKSANAAN'] || mail['HARI, TANGGAL PELAKSANAAN'] || mail['TANGGAL PELAKSANAAN']);
         const eventTime = mail['WAKTU PELAKSANAAN'];
         const eventPlace = mail['TEMPAT PELAKSANAAN'];
         const isEvent = (eventDate && eventDate !== '-') || (eventTime && eventTime !== '-') || (eventPlace && eventPlace !== '-');
@@ -277,7 +277,7 @@ export default function DirectoryPage() {
             trackingId: mail['NO URUT'] || mail.TrackingID || mail.NoSurat || `TRK-${mail.id.substring(0, 8)}`,
             subject: mail.PERIHAL || mail.Perihal || mail.Subject || 'No Subject',
             sender: mail['NAMA INSTANSI PENGIRIM'] || mail.Pengirim || 'Unknown Sender',
-            receivedDate: mail['TANGGAL SURAT DITERIMA'] ? formatCellValue(mail['TANGGAL SURAT DITERIMA']) : (mail.ReceivedAt ? new Date(mail.ReceivedAt.seconds * 1000).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/ /g, '-') : 'N/A'),
+            receivedDate: mail['TANGGAL SURAT DITERIMA'] ? formatCellValue(mail['TANGGAL SURAT DITERIMA']) : (mail.ReceivedAt ? new Date(mail.ReceivedAt.seconds * 1000).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A'),
             status: getComputedStatus(mail).toLowerCase(),
             category: mail.Category || mail.Kategori || 'General',
             processedBy: mail.ProcessedBy || mail['PENANGGUNG JAWAB PENERIMA DISPOSISI'],
