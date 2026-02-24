@@ -342,13 +342,16 @@ class BridgeLogic:
             
             # Attachments Management
             attachments = []
-            if cached.get('uploaded') and 'attachments' in cached:
-                attachments = cached['attachments']
-            elif dao_db:
+            cached_atts = cached.get('attachments', []) if isinstance(cached.get('attachments'), list) else []
+            
+            if dao_db:
                 try:
-                    attachments = self._extract_attachments(dao_db, no_urut)
+                    attachments = self._extract_attachments(dao_db, no_urut, cached_atts)
                 except Exception as e:
+                    attachments = cached_atts
                     logging.warning(f"Attachments Error [Rec {no_urut}]: {e}")
+            else:
+                attachments = cached_atts
             
             data['attachments'] = attachments
             data['attachment_link'] = ", ".join([a.get('driveViewLink', '') for a in attachments])
@@ -356,8 +359,9 @@ class BridgeLogic:
             # ALWAYS add to all_records for JSON backup (Fail-safe)
             all_records.append(data)
 
-            # 2. Smart Sync: Only write if hash changed OR never uploaded
-            if cached.get('hash') != current_hash or not cached.get('uploaded'):
+            # 2. Smart Sync: Only write if hash changed OR never uploaded OR attachments changed
+            atts_changed = (str(attachments) != str(cached_atts))
+            if cached.get('hash') != current_hash or not cached.get('uploaded') or atts_changed:
                 if self.firestore_db:
                     try:
                         self.firestore_db.collection('surat_masuk').document(doc_id).set(data, merge=True)
@@ -406,39 +410,52 @@ class BridgeLogic:
         if conn: conn.close()
         if dao_db: dao_db.Close()
 
-    def _extract_attachments(self, dao_db, no_urut):
+    def _extract_attachments(self, dao_db, no_urut, cached_attachments=None):
         results = []
+        if cached_attachments is None: cached_attachments = []
+        cached_map = {a.get('fileName'): a for a in cached_attachments if isinstance(a, dict) and a.get('fileName')}
         try:
-            # Handle numeric IDs appropriately to avoid Data type mismatch in Access
-            if isinstance(no_urut, (int, float)) or (isinstance(no_urut, str) and no_urut.isnumeric()):
+            # Smart Data Type Handler: Try numeric query first, if schema uses Text fallback to string query
+            try:
                 query = f"SELECT [LAMPIRAN SURAT] FROM [{self.target_table}] WHERE [NO URUT] = {no_urut}"
-            else:
+                rs = dao_db.OpenRecordset(query)
+            except:
+                # If numeric query throws type mismatch, use String quotes
                 query = f"SELECT [LAMPIRAN SURAT] FROM [{self.target_table}] WHERE [NO URUT] = '{no_urut}'"
-                
-            rs = dao_db.OpenRecordset(query)
+                rs = dao_db.OpenRecordset(query)
+
             if not rs.EOF:
                 child_rs = rs.Fields("LAMPIRAN SURAT").Value
                 while not child_rs.EOF:
                     fname = child_rs.Fields("FileName").Value
                     smart_name = f"{self.target_year}_{no_urut}_{fname}"
                     
-                    # Check Cache/Existing
-                    existing = self._check_drive_file(smart_name)
-                    if existing:
-                        logging.info(f"    [ATT] Found cached & existing drive file: {fname}")
-                        results.append({
-                            'fileName': fname,
-                            'driveViewLink': f"https://drive.google.com/file/d/{existing['id']}/view?usp=sharing",
-                            'driveFileId': existing['id']
-                        })
+                    if fname in cached_map:
+                        # Skip drive upload/check entirely if we already uploaded it before
+                        results.append(cached_map[fname])
                     else:
-                        logging.info(f"    [ATT] Extracting and Uploading: {fname}...")
-                        self.log_event(f"Uploading Attachment: {fname} for Doc#{no_urut}", "info")
-                        
-                        temp_dir = os.path.join(os.path.dirname(__file__), 'temp_att')
-                        if not os.path.exists(temp_dir): os.makedirs(temp_dir)
-                        path = os.path.join(temp_dir, smart_name)
-                        child_rs.Fields("FileData").SaveToFile(path)
+                        # Check Cache/Existing
+                        existing = self._check_drive_file(smart_name)
+                        if existing:
+                            logging.info(f"    [ATT] Found cached & existing drive file: {fname}")
+                            results.append({
+                                'fileName': fname,
+                                'driveViewLink': f"https://drive.google.com/file/d/{existing['id']}/view?usp=sharing",
+                                'driveFileId': existing['id']
+                            })
+                        else:
+                            logging.info(f"    [ATT] Extracting and Uploading: {fname}...")
+                            self.log_event(f"Uploading Attachment: {fname} for Doc#{no_urut}", "info")
+                            
+                            temp_dir = os.path.join(os.path.dirname(__file__), 'temp_att')
+                            if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+                            path = os.path.join(temp_dir, smart_name)
+                            
+                            if os.path.exists(path):
+                                try: os.remove(path)
+                                except: pass
+                                
+                            child_rs.Fields("FileData").SaveToFile(path)
                         
                         if os.path.exists(path):
                             res = self._upload_to_drive(path, smart_name)
