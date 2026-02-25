@@ -60,12 +60,6 @@ class BridgeTrayApp:
         if self.bridge:
             logging.info("Fetching initial configuration...")
             self.bridge.sync_config()
-            
-            # Wait for DB check
-            if not self.bridge.db_path or not os.path.exists(self.bridge.db_path):
-                logging.warning(f"DB Path not found yet: {self.bridge.db_path}. Retrying config fetch...")
-                time.sleep(2)
-                self.bridge.sync_config()
 
         # 2. Start Initial Sync (Background)
         threading.Thread(target=self.safe_sync, daemon=True).start()

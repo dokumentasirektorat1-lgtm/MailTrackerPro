@@ -9,10 +9,7 @@ cd /d "%~dp0"
 ::  Logika utama bridge ada di 'bridge/bridge_tray.py'.
 :: -------------------------------------------------------------
 
-echo Starting MailTrackerPro Watchdog & Bridge...
-
-:: Jalankan PowerShell script dalam mode Hidden (WindowStyle Hidden)
-:: Ini memastikan aplikasi berjalan di background/tray.
-powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "run_bridge_tray.ps1"
+:: Mulai Bridge secara tersembunyi tanpa powershell
+start "" wscript.exe "%~dp0start_hidden.vbs"
 
 exit

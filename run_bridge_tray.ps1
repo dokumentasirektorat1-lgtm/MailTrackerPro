@@ -29,13 +29,13 @@ $global:currentBridgeProcess = $null
 # pythonw.exe is headless (no window title or handle).
 # ---------------------------------------------------------
 function Test-BridgeRunning {
-    # Check for python OR pythonw running the tray script
-    $procs = Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue
+    # Check for node running the bridge script
+    $procs = Get-Process -Name "node" -ErrorAction SilentlyContinue
     foreach ($p in $procs) {
         try {
             # Get Command Line via WMI
             $cmdline = (Get-WmiObject Win32_Process -Filter "ProcessId=$($p.Id)").CommandLine
-            if ($cmdline -match "bridge_tray\.py") { return $true }
+            if ($cmdline -match "index\.js") { return $true }
         }
         catch {}
     }

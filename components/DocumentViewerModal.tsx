@@ -38,6 +38,58 @@ interface DocumentViewerModalProps {
     mail: MailDetail | null;
 }
 
+// ─── Date Formatter ────────────────────────────────────────────────────────
+const BULAN: Record<string, number> = {
+    januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+    juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+};
+
+const formatDate = (raw: string | undefined): string => {
+    if (!raw) return '-';
+
+    let date: Date | null = null;
+
+    // Case 1: ISO string like "2026-03-02T00:00:00" or "2026-03-02"
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        const cleaned = raw.split('T')[0];
+        const parts = cleaned.split('-');
+        date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+
+    // Case 2: Pre-formatted Indonesian like "02 Maret 2026" or "2 Maret 2026"
+    if (!date || isNaN(date.getTime())) {
+        const match = raw.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})$/);
+        if (match) {
+            const monthIdx = BULAN[match[2].toLowerCase()];
+            if (monthIdx !== undefined) {
+                date = new Date(parseInt(match[3], 10), monthIdx, parseInt(match[1], 10));
+            }
+        }
+    }
+
+    if (!date || isNaN(date.getTime())) return raw; // fallback: return as-is
+
+    return date.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+};
+
+// ─── Place Formatter (decode HTML entities like &amp;) ────────────────────────
+const formatPlace = (raw: string | undefined): string => {
+    if (!raw) return '-';
+    return raw
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&nbsp;/gi, ' ')
+        .trim();
+};
+
 const getFileIcon = (type: string) => {
     switch (type) {
         case 'pdf':
@@ -412,15 +464,15 @@ export default function DocumentViewerModal({ isOpen, onClose, mail }: DocumentV
                                                             <Disclosure.Panel className="px-4 pb-4 pt-1 text-sm text-indigo-800 dark:text-indigo-200 space-y-2">
                                                                 <div>
                                                                     <p className="text-xs font-semibold text-indigo-400 dark:text-indigo-400 uppercase tracking-wide">Date</p>
-                                                                    <p className="font-medium">{mail.eventInfo?.date}</p>
+                                                                    <p className="font-medium">{formatDate(mail.eventInfo?.date)}</p>
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-semibold text-indigo-400 dark:text-indigo-400 uppercase tracking-wide">Time</p>
-                                                                    <p className="font-medium">{mail.eventInfo?.time}</p>
+                                                                    <p className="font-medium">{mail.eventInfo?.time || '-'}</p>
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-semibold text-indigo-400 dark:text-indigo-400 uppercase tracking-wide">Place</p>
-                                                                    <p className="font-medium">{mail.eventInfo?.place}</p>
+                                                                    <p className="font-medium break-words">{formatPlace(mail.eventInfo?.place)}</p>
                                                                 </div>
                                                             </Disclosure.Panel>
                                                         </div>
@@ -434,7 +486,7 @@ export default function DocumentViewerModal({ isOpen, onClose, mail }: DocumentV
 
                                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
                                                     <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Received Date</p>
-                                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{mail.receivedDate}</p>
+                                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{formatDate(mail.receivedDate)}</p>
                                                 </div>
 
                                                 {mail.processedBy && (

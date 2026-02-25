@@ -188,22 +188,44 @@ class BridgeLogic:
 
     def sync_config(self):
         """Read configuration from Firestore."""
+        config_cache_file = os.path.join(os.path.dirname(__file__), 'config_cache.json')
+        
+        # Load from cache first to guarantee we have A path even if offline
+        try:
+            if os.path.exists(config_cache_file):
+                with open(config_cache_file, 'r', encoding='utf-8-sig') as f:
+                    cached = json.load(f)
+                    self.db_path = cached.get('accessDbPath', self.db_path)
+                    self.target_year = int(cached.get('targetYear', self.target_year))
+                    self.drive_folder_id = cached.get('driveFolderId', self.drive_folder_id)
+        except Exception: pass
+        
         if not self.firestore_db: return
         try:
             logging.info("  [FS] Fetching system config...")
             doc_ref = self.firestore_db.collection('config').document('system')
-            # Add timeout to avoid hanging threads
-            doc = doc_ref.get(timeout=15)
+            # Add timeout and disable retry to avoid hanging 300s on Quota Exceeded
+            doc = doc_ref.get(timeout=5, retry=None)
             data = doc.to_dict()
             if data:
                 self.db_path = data.get('accessDbPath', self.db_path)
                 self.drive_folder_id = data.get('driveFolderId', self.drive_folder_id)
                 self.target_year = int(data.get('targetYear', self.target_year))
                 logging.info(f"  [FS] Config sync: OK. DB: {self.db_path} | Target Year: {self.target_year}")
+                
+                # Save to cache
+                try:
+                    with open(config_cache_file, 'w', encoding='utf-8') as f:
+                        json.dump({
+                            'accessDbPath': self.db_path,
+                            'targetYear': self.target_year,
+                            'driveFolderId': self.drive_folder_id
+                        }, f)
+                except Exception: pass
             else:
                 logging.warning("  [FS] Config document not found.")
         except Exception as e:
-            logging.warning(f"  [FS] Config sync failed: {e}")
+            logging.warning(f"  [FS] Config sync failed: {e}. Using cached config: DB={self.db_path}")
 
     def _calculate_hash(self, data_dict):
         """Create a digital fingerprint of the record to detect changes."""

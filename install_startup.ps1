@@ -3,13 +3,13 @@ param (
 )
 
 $TaskName = "MailTrackerBridgeAutoStart"
-$ScriptPath = Join-Path $PSScriptRoot "run_bridge_tray.ps1"
+$ScriptPath = Join-Path $PSScriptRoot "bridge_worker.bat"
 $VbsPath = Join-Path $PSScriptRoot "start_hidden.vbs"
 
-# Create VBScript wrapper to launch PowerShell completely hidden (no flash)
+# Create VBScript wrapper to launch batch completely hidden (no flash)
 $VbsContent = @"
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$ScriptPath""", 0, False
+WshShell.Run "cmd.exe /c """"""$ScriptPath""""""", 0, False
 "@
 Set-Content -Path $VbsPath -Value $VbsContent -Force
 
